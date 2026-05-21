@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Animal Tracking Explorer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0a0a0c;
+  --bg2:#111116;
+  --bg3:#17171e;
+  --bg4:#1e1e28;
+  --border:rgba(140,130,180,0.12);
+  --border2:rgba(140,130,180,0.22);
+  --accent:#8b7fd4;
+  --accent2:#a99fd4;
+  --accent3:#c4a882;
+  --dim:rgba(139,127,212,0.15);
+  --text:#ddd8f0;
+  --text2:#8a85a8;
+  --text3:#44404f;
+  --panel:#0d0d12;
+  --radius:6px;
+  --sans:Helvetica, Arial, sans-serif;
+  --serif:Helvetica, Arial, sans-serif;
+  --mono:"Courier New", monospace;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:var(--sans); background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+#topbar { display:flex; align-items:center; gap:12px; padding:0 20px; height:50px; background:var(--panel); border-bottom:1px solid var(--border); flex-shrink:0; z-index:1000; }
+#topbar .logo { font-family:var(--serif); font-size:19px; font-weight:400; font-style:italic; color:var(--text); white-space:nowrap; }
+#topbar .logo em { font-style:normal; color:var(--accent2); font-weight:300; }
+.tb-sep { width:1px; height:20px; background:var(--border); flex-shrink:0; }
+.tb-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.1em; white-space:nowrap; font-weight:500; }
+#upload-btn { padding:5px 14px; background:var(--dim); color:var(--accent2); border:1px solid rgba(140,130,180,0.3); border-radius:var(--radius); font-family:var(--sans); font-size:12px; cursor:pointer; white-space:nowrap; transition:background 0.2s; }
+#upload-btn:hover { background:rgba(139,127,212,0.25); }
+#file-input { display:none; }
+#remap-btn { display:none; padding:5px 12px; background:transparent; color:var(--text3); border:1px solid var(--border); border-radius:var(--radius); font-family:var(--sans); font-size:12px; cursor:pointer; transition:color 0.2s, border-color 0.2s; }
+#remap-btn:hover { color:var(--text2); border-color:var(--border2); }
+#status-pill { font-family:var(--mono); font-size:10px; padding:3px 10px; border-radius:20px; background:transparent; color:var(--text3); border:1px solid var(--border); white-space:nowrap; max-width:340px; overflow:hidden; text-overflow:ellipsis; letter-spacing:0.02em; }
+#status-pill.ok { color:var(--accent2); border-color:rgba(140,130,180,0.25); }
+#status-pill.err { color:#c4826a; border-color:rgba(196,130,106,0.3); background:rgba(196,130,106,0.06); }
+.tb-spacer { flex:1; }
+#apply-btn { padding:5px 16px; background:var(--accent); color:#0a0a0c; border:none; border-radius:var(--radius); font-family:var(--sans); font-size:12px; font-weight:500; cursor:pointer; transition:opacity 0.2s; white-space:nowrap; }
+#apply-btn:hover { opacity:0.85; }
+#main { display:flex; flex:1; overflow:hidden; }
+#sidebar { width:272px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+.sidebar-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.section-title { font-family:var(--sans); font-size:9px; font-weight:500; text-transform:uppercase; letter-spacing:0.14em; color:var(--text3); margin-bottom:11px; }
+.date-row { display:flex; flex-direction:column; gap:5px; }
+.date-row label { font-size:11px; color:var(--text2); font-weight:300; }
+.date-row input[type=date] { width:100%; padding:6px 8px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--mono); font-size:11px; outline:none; }
+.date-row input[type=date]:focus { border-color:var(--accent); }
+#animal-list-wrap { flex:1; overflow-y:auto; padding:0 16px 12px; }
+#animal-list-wrap::-webkit-scrollbar { width:3px; }
+#animal-list-wrap::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.animal-row { display:flex; align-items:center; gap:8px; padding:4px 0; cursor:pointer; user-select:none; }
+.animal-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; opacity:0.85; }
+.animal-cb { width:13px; height:13px; cursor:pointer; flex-shrink:0; accent-color:var(--accent); }
+.animal-label { font-family:var(--serif); font-size:13px; color:var(--text2); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color 0.15s; }
+.animal-row:hover .animal-label { color:var(--text); }
+.sel-all-row { display:flex; gap:10px; padding:7px 0 3px; }
+.sel-all-row button { font-size:10px; color:var(--text3); background:none; border:none; cursor:pointer; font-family:var(--sans); letter-spacing:0.06em; text-transform:uppercase; transition:color 0.15s; }
+.sel-all-row button:hover { color:var(--accent2); }
+.style-row { display:flex; flex-direction:column; gap:9px; }
+.ctrl-row { display:flex; align-items:center; gap:8px; }
+.ctrl-row label { font-size:11px; color:var(--text2); width:90px; flex-shrink:0; font-weight:300; }
+.ctrl-row input[type=range] { flex:1; accent-color:var(--accent); height:3px; cursor:pointer; }
+.ctrl-row input[type=color] { width:26px; height:20px; border:1px solid var(--border2); background:none; padding:0; cursor:pointer; border-radius:3px; }
+.ctrl-row select { flex:1; padding:4px 6px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--sans); font-size:11px; outline:none; }
+.ctrl-val { font-family:var(--mono); font-size:10px; color:var(--text3); width:28px; text-align:right; }
+#map-wrap { flex:1; position:relative; overflow:hidden; }
+#map { width:100%; height:100%; }
+#map-error { display:none; position:absolute; top:16px; left:50%; transform:translateX(-50%); z-index:999; background:rgba(196,130,106,0.12); border:1px solid rgba(196,130,106,0.4); border-radius:var(--radius); padding:10px 18px; font-family:var(--mono); font-size:12px; color:#c4826a; max-width:480px; text-align:center; }
+#map-error.active { display:block; }
+#playback-bar { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(10,10,14,0.88); backdrop-filter:blur(12px); border:1px solid var(--border2); border-radius:40px; display:flex; align-items:center; gap:12px; padding:7px 18px; z-index:1000; min-width:360px; }
+#play-btn { width:30px; height:30px; border-radius:50%; background:var(--accent); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:opacity 0.2s; }
+#play-btn:hover { opacity:0.8; }
+#play-btn svg { width:12px; height:12px; fill:#0a0a0c; }
+#playback-slider { flex:1; accent-color:var(--accent); cursor:pointer; }
+#playback-time { font-family:var(--mono); font-size:10px; color:var(--text2); white-space:nowrap; min-width:110px; text-align:right; letter-spacing:0.03em; }
+#speed-sel { font-family:var(--mono); font-size:10px; background:var(--bg3); border:1px solid var(--border); border-radius:4px; color:var(--text2); padding:2px 4px; outline:none; cursor:pointer; }
+#stats-panel { width:292px; background:var(--panel); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+.stats-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.stats-header h2 { font-family:var(--sans); font-size:9px; font-weight:500; text-transform:uppercase; letter-spacing:0.14em; color:var(--text3); }
+#export-btn { font-size:11px; padding:4px 10px; background:transparent; border:1px solid var(--border); border-radius:var(--radius); color:var(--text3); cursor:pointer; font-family:var(--sans); transition:border-color 0.2s, color 0.2s; }
+#export-btn:hover { border-color:var(--accent); color:var(--accent2); }
+#stats-scroll { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+#stats-scroll::-webkit-scrollbar { width:3px; }
+#stats-scroll::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.stat-card { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:12px; }
+.stat-card-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.stat-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; opacity:0.85; }
+.stat-name { font-family:var(--serif); font-size:14px; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.stat-item { display:flex; flex-direction:column; gap:2px; }
+.stat-item .key { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:0.1em; font-weight:500; }
+.stat-item .val { font-family:var(--mono); font-size:12px; color:var(--text); }
+.sparkline-wrap { margin-top:8px; height:32px; }
+#col-modal-bg { display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; }
+#col-modal-bg.active { display:flex; }
+#col-modal { background:var(--bg2); border:1px solid var(--border2); border-radius:10px; padding:28px; width:440px; max-width:92vw; }
+#col-modal h2 { font-family:var(--serif); font-size:22px; font-weight:300; font-style:italic; color:var(--text); margin-bottom:4px; }
+#col-modal .sub { font-size:12px; color:var(--text2); margin-bottom:20px; font-weight:300; line-height:1.5; }
+.col-row { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+.col-row label { width:80px; font-size:11px; color:var(--text2); flex-shrink:0; font-weight:300; }
+.col-row label .req { color:var(--accent3); }
+.col-row select { flex:1; padding:7px 10px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--mono); font-size:11px; outline:none; }
+.col-row select:focus { border-color:var(--accent); }
+.modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+.btn-cancel { padding:8px 16px; border-radius:var(--radius); font-family:var(--sans); font-size:12px; cursor:pointer; background:transparent; color:var(--text2); border:1px solid var(--border); }
+.btn-cancel:hover { color:var(--text); }
+.btn-confirm { padding:8px 18px; border-radius:var(--radius); font-family:var(--sans); font-size:12px; font-weight:500; cursor:pointer; background:var(--accent); color:#0a0a0c; border:none; }
+.btn-confirm:hover { opacity:0.85; }
+#loading { display:none; position:fixed; inset:0; z-index:8000; background:rgba(10,10,14,0.65); align-items:center; justify-content:center; flex-direction:column; gap:14px; }
+#loading.active { display:flex; }
+.spinner { width:28px; height:28px; border:1.5px solid var(--border2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#loading p { font-size:12px; color:var(--text2); font-family:var(--mono); letter-spacing:0.04em; }
+.leaflet-popup-content-wrapper { background:var(--bg2) !important; color:var(--text) !important; border:1px solid var(--border2) !important; border-radius:var(--radius) !important; font-family:var(--mono) !important; font-size:12px !important; box-shadow:0 8px 32px rgba(0,0,0,0.6) !important; }
+.leaflet-popup-tip { background:var(--bg2) !important; }
+.leaflet-popup-content { margin:10px 14px !important; line-height:1.6 !important; }
+.popup-id { font-family:var(--serif); font-size:14px; color:var(--accent2); margin-bottom:5px; }
+.popup-row { color:var(--text2); font-size:11px; }
+.leaflet-control-attribution { font-size:10px !important; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="logo">Tracking <em>Explorer</em></div>
+  <div class="tb-sep"></div>
+  <button id="upload-btn">↑ Load file</button>
+  <input type="file" id="file-input" accept=".csv,.rds">
+  <button id="remap-btn" onclick="reopenColumnModal()">⇄ Remap columns</button>
+  <div id="status-pill">No data loaded</div>
+  <div class="tb-spacer"></div>
+  <span class="tb-label">Apply filters</span>
+  <button id="apply-btn">Refresh</button>
+</div>
+<div id="main">
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="section-title">Date range</div>
+      <div class="date-row">
+        <label>From</label><input type="date" id="date-from">
+        <label style="margin-top:5px">To</label><input type="date" id="date-to">
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-title">Animals</div>
+      <div class="sel-all-row">
+        <button onclick="selectAllAnimals(true)">Select all</button>
+        <button onclick="selectAllAnimals(false)">Clear</button>
+      </div>
+    </div>
+    <div id="animal-list-wrap">
+      <div style="font-size:12px;color:var(--text3);padding:8px 0;font-weight:300;">Load a file to see animals.</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-title">Display</div>
+      <div class="style-row">
+        <div class="ctrl-row">
+          <label>Radius</label>
+          <input type="range" id="pt-radius" min="1" max="14" value="6" oninput="updateStyle()">
+          <span class="ctrl-val" id="pt-radius-val">6</span>
+        </div>
+        <div class="ctrl-row">
+          <label>Opacity</label>
+          <input type="range" id="pt-opacity" min="0.1" max="1" step="0.05" value="0.8" oninput="updateStyle()">
+          <span class="ctrl-val" id="pt-opacity-val">0.8</span>
+        </div>
+        <div class="ctrl-row">
+          <label>Colour mode</label>
+          <select id="color-mode" onchange="updateStyle()">
+            <option value="per-animal">Per animal</option>
+            <option value="time">By time</option>
+            <option value="category">By category</option>
+            <option value="custom">Single colour</option>
+          </select>
+        </div>
+        <div class="ctrl-row">
+          <label>Colour by</label>
+          <select id="color-field" onchange="updateStyle()"><option value="">None</option></select>
+        </div>
+        <div class="ctrl-row" id="custom-color-row" style="display:none">
+          <label>Colour</label>
+          <input type="color" id="pt-color" value="#8b7fd4" oninput="updateStyle()">
+        </div>
+        <div class="ctrl-row">
+          <label>Show tracks</label>
+          <select id="show-tracks" onchange="updateStyle()">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div class="ctrl-row">
+          <label>Track opacity</label>
+          <input type="range" id="track-opacity" min="0.05" max="1" step="0.05" value="0.3" oninput="updateStyle()">
+          <span class="ctrl-val" id="track-opacity-val">0.3</span>
+        </div>
+        <div class="ctrl-row">
+          <label>Fade time</label>
+          <select id="fade-time" onchange="updateStyle()">
+            <option value="off" selected>Off</option>
+            <option value="12h">12 h</option>
+            <option value="1d">1 day</option>
+            <option value="3d">3 days</option>
+            <option value="1w">1 week</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="map-error"></div>
+    <div id="playback-bar">
+      <button id="play-btn" onclick="togglePlay()">
+        <svg id="play-icon" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+      <input type="range" id="playback-slider" min="0" max="100" value="0" step="1" oninput="onSliderInput()">
+      <div id="playback-time">—</div>
+      <select id="speed-sel">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="5">5×</option>
+        <option value="10">10×</option>
+      </select>
+    </div>
+  </div>
+  <div id="stats-panel">
+    <div class="stats-header">
+      <h2>Statistics</h2>
+      <button id="export-btn" onclick="exportCSV()">↓ Export CSV</button>
+    </div>
+    <div id="stats-scroll">
+      <div style="font-size:12px;color:var(--text3);padding:8px;font-weight:300;">Load data and apply filters to see statistics.</div>
+    </div>
+  </div>
+</div>
+<div id="col-modal-bg">
+  <div id="col-modal">
+    <h2>Map columns</h2>
+    <p class="sub" id="modal-sub">Match each required field to a column in your file.</p>
+    <div id="col-rows"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmMapping()">Confirm &amp; load</button>
+    </div>
+  </div>
+</div>
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="loading-msg">Loading…</p>
+</div>
+<script>
+const API = 'http://localhost:8080';
+const PALETTE = ['#8b7fd4','#c4a882','#7db5c4','#c47d8b','#82c49a','#c4b07d','#a07dc4','#7dc4b5','#c4897d','#9dc47d','#7d8bc4','#c4c07d','#c47db5','#7dadc4','#b0c47d'];
+const CATEGORY_PALETTE = PALETTE.slice();
+let allAnimals = [];
+let animalIndex = {};
+let colMap = {};
+let colTypes = {};
+let pendingColumns = [];
+let allPoints = [];
+let layers = { points: null, tracks: null };
+let leafMap = null;
+let playTimer = null;
+let isPlaying = false;
+let sparkCharts = {};
+let playMin = 0;
+let playMax = 0;
+let playCutoff = 0;
+let didInitialFit = false;
+let colorField = '';
+let categoryIndex = {};
+function animalColor(id) { return PALETTE[(animalIndex[String(id)] ?? 0) % PALETTE.length]; }
+function categoryColor(val) { if (!(val in categoryIndex)) categoryIndex[val] = Object.keys(categoryIndex).length; return CATEGORY_PALETTE[categoryIndex[val] % CATEGORY_PALETTE.length]; }
+function initMap() { leafMap = L.map('map', { zoomControl: true }).setView([52, 5.9], 8); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(leafMap); }
+document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
+document.getElementById('file-input').onchange = async function() {
+  const file = this.files[0];
+  if (!file) return;
+  clearMapError();
+  showLoading('Uploading file…');
+  setStatus('Uploading…', '');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+    colTypes = data.col_types || {};
+    didInitialFit = false;
+    hideLoading();
+    openColumnModal(data.columns, data.col_types);
+  } catch(e) {
+    hideLoading();
+    setStatus('Upload failed: ' + e.message, 'err');
+    showMapError('Upload failed: ' + e.message);
+  }
+  this.value = '';
+};
+function openColumnModal(cols, types, currentMap = {}) {
+  cols = Array.isArray(cols) ? cols : [];
+  types = types || {};
+  pendingColumns = cols;
+  if (!cols.length) { showMapError('Upload succeeded, but no columns were returned by the API.'); hideLoading(); return; }
+  const fields = [
+    { key: 'lat', label: 'Latitude', hint: ['latitude','lat','decimallatitude','y'] },
+    { key: 'lon', label: 'Longitude', hint: ['longitude','lon','lng','decimallongitude','x'] },
+    { key: 'id', label: 'Animal ID', hint: ['bird_band','band','id','animal_id','individual','tag','name'] },
+    { key: 'dt', label: 'Date/Time', hint: ['dt_r','dt','datetime','date_time','timestamp','time','date'] },
+  ];
+  function bestGuess(key, hints) {
+    if (!Array.isArray(cols) || !cols.length) return '';
+    if (currentMap[key] && cols.includes(currentMap[key])) return currentMap[key];
+    for (const h of hints) { const m = cols.find(c => String(c).toLowerCase() === h.toLowerCase()); if (m) return m; }
+    for (const h of hints) { const m = cols.find(c => String(c).toLowerCase().includes(h.toLowerCase())); if (m) return m; }
+    return cols[0];
+  }
+  const wrap = document.getElementById('col-rows');
+  wrap.innerHTML = '';
+  fields.forEach(f => {
+    const guess = bestGuess(f.key, f.hint);
+    const opts = cols.map(c => `<option value="${c}"${c === guess ? ' selected' : ''}>${c}  (${(types||{})[c] || '?'})</option>`).join('');
+    wrap.innerHTML += `<div class="col-row"><label>${f.label} <span class="req">*</span></label><select id="cm-${f.key}">${opts}</select></div>`;
+  });
+  const extraCols = cols.filter(c => !['latitude','longitude','bird_band','dt_r','lat','lon','id','dt'].includes(String(c).toLowerCase()));
+  const colorRow = document.createElement('div');
+  colorRow.className = 'col-row';
+  colorRow.innerHTML = `
+    <label>Colour field</label>
+    <select id="cm-color_by">
+      <option value="">None</option>
+      ${extraCols.map(c => `<option value="${c}">${c}</option>`).join('')}
+    </select>
+  `;
+  wrap.appendChild(colorRow);
+  document.getElementById('modal-sub').textContent = Object.keys(currentMap).length ? 'Update the column mapping and confirm to reload the data.' : 'Match each required field to a column in your file. Required fields are marked *.';
+  document.getElementById('col-modal-bg').classList.add('active');
+  if (!Object.keys(currentMap).length) {
+    setTimeout(() => {
+      const lat = document.getElementById('cm-lat')?.value;
+      const lon = document.getElementById('cm-lon')?.value;
+      const id  = document.getElementById('cm-id')?.value;
+      const dt  = document.getElementById('cm-dt')?.value;
+      if (lat && lon && id && dt) confirmMapping();
+    }, 100);
+  }
+}
+function reopenColumnModal() { if (!pendingColumns.length) return; openColumnModal(pendingColumns, colTypes, colMap); }
+function closeModal() { document.getElementById('col-modal-bg').classList.remove('active'); }
+async function confirmMapping() {
+  const latCol = document.getElementById('cm-lat')?.value || '';
+  const lonCol = document.getElementById('cm-lon')?.value || '';
+  const idCol  = document.getElementById('cm-id')?.value || '';
+  const dtCol  = document.getElementById('cm-dt')?.value || '';
+  const colorCol = document.getElementById('cm-color_by')?.value || '';
+  if (!latCol || !lonCol || !idCol || !dtCol) { showMapError('Please select all required column mappings.'); return; }
+  colMap = { lat: latCol, lon: lonCol, id: idCol, dt: dtCol, color_by: colorCol };
+  colorField = colorCol || '';
+  closeModal();
+  showLoading('Applying column mapping…');
+  try {
+    const r = await fetch(`${API}/columns`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(colMap) });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Unknown columns error');
+    await loadMeta();
+    await refreshData();
+  } catch(e) {
+    setStatus('Mapping error: ' + e.message, 'err');
+    showMapError('Column mapping error: ' + e.message);
+  }
+  hideLoading();
+}
+async function loadMeta() {
+  const r = await fetch(`${API}/meta`);
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  allAnimals = data.animals;
+  animalIndex = {};
+  allAnimals.forEach((a, i) => animalIndex[String(a)] = i);
+  document.getElementById('date-from').value = data.date_min;
+  document.getElementById('date-to').value = data.date_max;
+  document.getElementById('remap-btn').style.display = 'inline-block';
+  renderAnimalList();
+  setStatus(`${(data.total_rows || 0).toLocaleString()} rows · ${allAnimals.length} animal${allAnimals.length !== 1 ? 's' : ''}`, 'ok');
+}
+function renderAnimalList() {
+  const wrap = document.getElementById('animal-list-wrap');
+  wrap.innerHTML = '';
+  allAnimals.forEach(aid => {
+    const row = document.createElement('div');
+    row.className = 'animal-row';
+    row.innerHTML = `<input type="checkbox" class="animal-cb" id="cb-${CSS.escape(String(aid))}" value="${aid}" checked><div class="animal-dot" style="background:${animalColor(aid)}"></div><label class="animal-label" for="cb-${CSS.escape(String(aid))}">${aid}</label>`;
+    wrap.appendChild(row);
+  });
+}
+function selectAllAnimals(val) { document.querySelectorAll('.animal-cb').forEach(cb => cb.checked = val); }
+function selectedAnimals() { return [...document.querySelectorAll('.animal-cb:checked')].map(cb => cb.value); }
+document.getElementById('apply-btn').onclick = () => refreshData();
+function fadeOpacity(dt, baseOpacity) {
+  const mode = document.getElementById('fade-time').value;
+  if (mode === 'off') return baseOpacity;
+  const spanHours = { '12h': 12, '1d': 24, '3d': 72, '1w': 168 }[mode] || 24;
+  const ageHours = (playMax - new Date(dt).getTime()) / 36e5;
+  const x = Math.min(Math.max(ageHours / spanHours, 0), 1);
+  return 0.02 + (baseOpacity - 0.02) * (1 - x);
+}
+async function refreshData() {
+  if (!allAnimals.length) return;
+  clearMapError();
+  showLoading('Fetching points…');
+  const animals = selectedAnimals();
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo = document.getElementById('date-to').value;
+  const params = new URLSearchParams({ animals: animals.join(','), date_from: dateFrom, date_to: dateTo, max_points: 25000 });
+  try {
+    const [ptResp, stResp] = await Promise.all([fetch(`${API}/points?${params}`), fetch(`${API}/stats?${params}`)]);
+    if (!ptResp.ok) throw new Error(`Points API returned ${ptResp.status}`);
+    if (!stResp.ok) throw new Error(`Stats API returned ${stResp.status}`);
+    const ptRes = await ptResp.json();
+    const stRes = await stResp.json();
+    if (ptRes.error) throw new Error('Points: ' + ptRes.error);
+    if (stRes.error) throw new Error('Stats: ' + stRes.error);
+    const raw = Array.isArray(ptRes.points) ? ptRes.points : [];
+    if (raw.length === 0) { showMapError('No points returned for this selection. Check your column mapping and date range.'); hideLoading(); return; }
+    allPoints = raw.sort((a, b) => (String(a.dt) < String(b.dt) ? -1 : 1));
+    const times = allPoints.map(p => new Date(p.dt).getTime()).filter(t => !isNaN(t));
+    if (!times.length) { showMapError('No valid timestamps found.'); hideLoading(); return; }
+    playMin = Math.min(...times);
+    playMax = Math.max(...times);
+    playCutoff = playMin;
+    didInitialFit = false;
+    const s = document.getElementById('playback-slider');
+    s.min = playMin;
+    s.max = playMax;
+    s.step = 60000;
+    s.value = playMin;
+    updatePlaybackTimeByCutoff(playCutoff);
+    renderMapByCutoff(playCutoff);
+    renderStats(stRes.animals || []);
+    resetPlayback();
+    setStatus(`${(ptRes.total || allPoints.length).toLocaleString()} pts shown · ${allAnimals.length} animals`, 'ok');
+  } catch(e) {
+    console.error(e);
+    setStatus('Error: ' + e.message, 'err');
+    showMapError('Error loading data: ' + e.message);
+  }
+  hideLoading();
+}
+function ptColor(p) {
+  const colorMode = document.getElementById('color-mode').value;
+  const custom = document.getElementById('pt-color').value;
+  const colorBy = document.getElementById('color-field').value;
+  if (colorMode === 'custom') return custom;
+  if (colorMode === 'time') return timeColor(p.dt);
+  if (colorMode === 'category' && colorBy && p[colorBy] != null) return categoryColor(String(p[colorBy]));
+  return animalColor(p.id);
+}
+function timeColor(dt) {
+  if (!allPoints.length) return PALETTE[0];
+  const times = allPoints.map(p => new Date(p.dt).getTime()).filter(t => !isNaN(t));
+  const tMin = Math.min(...times);
+  const tMax = Math.max(...times) || (tMin + 1);
+  const t = (new Date(dt).getTime() - tMin) / (tMax - tMin);
+  const r = Math.round(139 + t * (196 - 139));
+  const g = Math.round(127 + t * (168 - 127));
+  const b = Math.round(212 + t * (130 - 212));
+  return `rgb(${r},${g},${b})`;
+}
+function renderMapByCutoff(cutoffMs) {
+  const save = allPoints;
+  allPoints = save.filter(p => new Date(p.dt).getTime() <= cutoffMs);
+  renderMap(null);
+  allPoints = save;
+}
+function renderMap(upToIdx = null) {
+  if (layers.points) { leafMap.removeLayer(layers.points); layers.points = null; }
+  if (layers.tracks) { leafMap.removeLayer(layers.tracks); layers.tracks = null; }
+  const pts = upToIdx !== null ? allPoints.slice(0, upToIdx + 1) : allPoints;
+  if (!pts.length) return;
+  const colorMode = document.getElementById('color-mode').value;
+  const radius = +document.getElementById('pt-radius').value;
+  const opacity = +document.getElementById('pt-opacity').value;
+  const custom = document.getElementById('pt-color').value;
+  const showTracks = document.getElementById('show-tracks').value === 'yes';
+  const trackOp = +document.getElementById('track-opacity').value;
+  const times = pts.map(p => new Date(p.dt).getTime()).filter(t => !isNaN(t));
+  const tMin = Math.min(...times);
+  const tMax = Math.max(...times) || tMin + 1;
+  if (showTracks) {
+    const byAnimal = {};
+    pts.forEach(p => {
+      const aid = String(p.id);
+      if (!byAnimal[aid]) byAnimal[aid] = [];
+      byAnimal[aid].push([+p.lat, +p.lon]);
+    });
+    const lines = Object.entries(byAnimal).map(([aid, coords]) => L.polyline(coords, { color: animalColor(aid), weight: 1.2, opacity: trackOp, smoothFactor: 1 }));
+    layers.tracks = L.layerGroup(lines).addTo(leafMap);
+  }
+  const circles = pts.map(p => {
+    const lat = +p.lat, lon = +p.lon;
+    const c = L.circleMarker([lat, lon], {
+      radius,
+      fillColor: (colorMode === 'custom' ? custom : (colorMode === 'time' ? timeColor(p.dt) : (colorMode === 'category' && colorField && p[colorField] != null ? categoryColor(String(p[colorField])) : animalColor(p.id)))),
+      color: 'transparent',
+      fillOpacity: fadeOpacity(p.dt, opacity, tMin, tMax)
+    });
+    const extras = Object.entries(p).filter(([k]) => !['lat','lon','id','dt'].includes(k)).map(([k,v]) => `<div class="popup-row"><b>${k}:</b> ${v}</div>`).join('');
+    c.bindPopup(`<div class="popup-id">${String(p.id)}</div><div class="popup-row">${String(p.dt).replace('T',' ').replace('Z','')}</div><div class="popup-row">lat ${lat.toFixed(5)}, lon ${lon.toFixed(5)}</div>${extras}`);
+    return c;
+  });
+  layers.points = L.layerGroup(circles).addTo(leafMap);
+  if (!didInitialFit && upToIdx === null) {
+    try {
+      const bounds = L.latLngBounds(pts.map(p => [+p.lat, +p.lon]));
+      if (bounds.isValid()) { leafMap.fitBounds(bounds, { padding: [40, 40], animate: false }); didInitialFit = true; }
+    } catch(e) {}
+  }
+}
+function updateStyle() {
+  document.getElementById('pt-radius-val').textContent = document.getElementById('pt-radius').value;
+  document.getElementById('pt-opacity-val').textContent = document.getElementById('pt-opacity').value;
+  document.getElementById('track-opacity-val').textContent = document.getElementById('track-opacity').value;
+  document.getElementById('custom-color-row').style.display = document.getElementById('color-mode').value === 'custom' ? 'flex' : 'none';
+  renderMapByCutoff(playCutoff || playMin);
+}
+function resetPlayback() { stopPlay(); const s = document.getElementById('playback-slider'); s.max = Math.max(playMin, playMax); s.min = playMin; s.value = playMin; playCutoff = playMin; updatePlaybackTimeByCutoff(playCutoff); }
+function togglePlay() { isPlaying ? stopPlay() : startPlay(); }
+function startPlay() {
+  if (!allPoints.length) return;
+  isPlaying = true;
+  document.getElementById('play-icon').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+  const speed = +document.getElementById('speed-sel').value;
+  const stepMs = Math.max(60000, Math.round((playMax - playMin) / 500)) * speed;
+  playTimer = setInterval(() => {
+    playCutoff = Math.min(playCutoff + stepMs, playMax);
+    document.getElementById('playback-slider').value = playCutoff;
+    updatePlaybackTimeByCutoff(playCutoff);
+    renderMapByCutoff(playCutoff);
+    if (playCutoff >= playMax) stopPlay();
+  }, 1000 / 30);
+}
+function stopPlay() { clearInterval(playTimer); isPlaying = false; document.getElementById('play-icon').innerHTML = '<polygon points="5,3 19,12 5,21"/>'; }
+function onSliderInput() { playCutoff = +document.getElementById('playback-slider').value; updatePlaybackTimeByCutoff(playCutoff); renderMapByCutoff(playCutoff); }
+function updatePlaybackTimeByCutoff(ms) { const d = new Date(ms); document.getElementById('playback-time').textContent = isNaN(d.getTime()) ? '—' : d.toISOString().replace('T', ' ').replace('Z', '').slice(0, 16); }
+function renderStats(animals) {
+  const scroll = document.getElementById('stats-scroll');
+  scroll.innerHTML = '';
+  Object.values(sparkCharts).forEach(c => c.destroy());
+  sparkCharts = {};
+  if (!animals.length) { scroll.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px;font-weight:300">No data.</div>'; return; }
+  animals.forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    const sid = `spark-${String(a.id).replace(/[^a-z0-9]/gi,'_')}`;
+    card.innerHTML = `
+      <div class="stat-card-header">
+        <div class="stat-dot" style="background:${animalColor(a.id)}"></div>
+        <div class="stat-name">${String(a.id)}</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-item"><span class="key">Points</span><span class="val">${Number(a.n_points || 0).toLocaleString()}</span></div>
+        <div class="stat-item"><span class="key">Distance</span><span class="val">${a.total_km ? Number(a.total_km).toLocaleString() + ' km' : '—'}</span></div>
+        <div class="stat-item"><span class="key">Avg speed</span><span class="val">${a.mean_speed_kmh != null ? a.mean_speed_kmh + ' km/h' : '—'}</span></div>
+        <div class="stat-item"><span class="key">Max speed</span><span class="val">${a.max_speed_kmh != null ? a.max_speed_kmh + ' km/h' : '—'}</span></div>
+        <div class="stat-item"><span class="key">First</span><span class="val">${a.date_first}</span></div>
+        <div class="stat-item"><span class="key">Last</span><span class="val">${a.date_last}</span></div>
+      </div>
+      <div class="sparkline-wrap"><canvas id="${sid}"></canvas></div>
+    `;
+    scroll.appendChild(card);
+    setTimeout(() => {
+      const ctx = document.getElementById(sid);
+      if (!ctx || !a.daily) return;
+      const col = animalColor(a.id);
+      sparkCharts[a.id] = new Chart(ctx, { type: 'bar', data: { labels: a.daily.dates, datasets: [{ data: a.daily.counts, backgroundColor: col + '55', borderColor: col, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false, beginAtZero: true } } } });
+    }, 60);
+  });
+}
+function exportCSV() {
+  const animals = selectedAnimals().join(',');
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo = document.getElementById('date-to').value;
+  const a = document.createElement('a');
+  a.href = `${API}/export?animals=${encodeURIComponent(animals)}&date_from=${dateFrom}&date_to=${dateTo}`;
+  a.download = 'tracking_export.csv';
+  a.click();
+}
+function setStatus(msg, cls) { const el = document.getElementById('status-pill'); el.textContent = msg; el.className = cls || ''; }
+function showMapError(msg) { const el = document.getElementById('map-error'); el.textContent = msg; el.classList.add('active'); }
+function clearMapError() { document.getElementById('map-error').classList.remove('active'); }
+function showLoading(msg) { document.getElementById('loading-msg').textContent = msg; document.getElementById('loading').classList.add('active'); }
+function hideLoading() { document.getElementById('loading').classList.remove('active'); }
+initMap();
+</script>
+</body>
+</html>
