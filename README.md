@@ -40,6 +40,7 @@ for this to work, your data should have a .csv file with:
 ** Refresh to apply filters ** 
 ------- you're set, the rest is playing around with the settings. Here are some details: -------
 
+# Description of functions
 
 5. Remap columns:
    click this button from the top-left corner if you want to choose different columns for the lat, lon, id, time or category. For example, I can choose "sex" as the categorical variable, here called  "colour field".
