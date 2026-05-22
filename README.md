@@ -3,12 +3,12 @@ Explore your tracking data interactively. No coding needed. Using R.
 
 
 # Contact
-This tool was developped by Clara Vinyeta Cortada. Please contact me (clara.vinyetacortada@wur.nl ; claravinyetacortada@gmail.com) if you have issues, suggestions or ideas.
+This tool was developed by Clara Vinyeta Cortada. Please contact me (clara.vinyetacortada@wur.nl ; claravinyetacortada@gmail.com) if you have issues, suggestions or ideas.
 
 # Goal
 Once upon a time there was a LOT of data from animal localizations, extracted with Radio tracking technologies (in my case, Radio tags from Cellular Tracking Technologies);
-exploring data with R requires manually filtering data (e.g. when you only want to see one bird's data), and coding every change in the map can be time-consuming.
-Enter the TrackingExplorer that helps you interactively plot your raw data points. 
+exploring data with R requires manually filtering data (e.g. when you only want to see one bird's data), and coding every change in the map can be time-consuming. Plus, replotting after each filtering can be tedious.
+Enter the TrackingExplorer that helps you interactively plot your raw data points without having to worry about coding.
 
 # Technicalities
 I used Claude and Perplexity to develop this tool; it is not perfect and will be optimized. Who;s the author of this? Nobody and everybody. Be aware that AI was used to develop this tool, and take the summary statistics with a kilogram of salt. Don't use this tool for analyses. Only to explore your data & get general summaries, please. 
